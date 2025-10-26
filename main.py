@@ -1,21 +1,40 @@
-import tkinter as tk 
-from tkinter import messagebox, ttk 
+import customtkinter as ctk
+from tkinter import messagebox
 from models.database import Database
-from models.user import User 
+from models.user import User
 
+#configuracion base 
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
 
+#inicializar la base 
 db = Database()
 user_handler = User(db)
 
-root = tk.Tk()
-root.title("Bienvenido a Reservaciones AVV")
-root.geometry("300x250")
+#ventana principal 
+root = ctk.CTk()
+root.title("Sistema de Ingreso")
+root.geometry("450x420")
+root.resizable(False,False)
 
+#metodos
 def login():
     email = entry_email.get()
     password = entry_pass.get()
-    user = user_handler.login(email,password)
+    user = user_handler.login(email, password)
     if user:
-        messagebox.showinfo("Login", f"Welcome, {user[1]}! Your role is {user[3]}")
+        messagebox.showinfo("Ingreso", f"Bienvenido {user[1]}.\nTu rol es: {user[3]}")
     else:
-        messagebox.showerror("Login", "Invalid email or password.")
+        messagebox.showinfo("Error", "Correo o Contraseña Incorrectos.")
+
+def open_register():
+    reg = ctk.CTkTopLevel(root)
+    reg.tittle("Registro de Usuario")
+    reg.geometry("420x450")
+    reg.resizable(False,False)
+
+    ctk.CTkLabel(reg, text="Registro de Nuevo Usuario", font=("Consolas", 18, "bold")).pack(pady=15)
+
+    entry_name = ctk.CTkEntry(reg, placeholder_text="Nombre Completo", width=300)
+    entry_name.pack(pady=10)
+
