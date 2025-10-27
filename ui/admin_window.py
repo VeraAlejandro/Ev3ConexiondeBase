@@ -3,6 +3,8 @@ from models.user import User
 import customtkinter as ctk
 from tkinter import ttk, messagebox
 from models.client import Client
+from models.room import Room
+
 
 class AdminWindow:
     def __init__(self, user_name):
@@ -15,6 +17,8 @@ class AdminWindow:
         self.db = Database(suppress_message=True)
         self.user_handler = User(self.db)
         self.client_handler = Client(self.db)
+        self.room_handler = Room(self.db)
+
 
         self.root = ctk.CTk()
         self.root.title("Panel de Administrador")
@@ -33,7 +37,7 @@ class AdminWindow:
         ctk.CTkLabel(sidebar, text="Opciones", font=("Consolas", 17, "bold")).pack(pady=20)
         ctk.CTkButton(sidebar, text="Gestionar Usuarios", width=150, command=self.show_user_management).pack(pady=10)
         ctk.CTkButton(sidebar, text="Gestionar Clientes", width=150, command=self.show_client_management).pack(pady=10)
-        #ctk.CTkButton(sidebar, text="Gestionar Salas", width=150, command=self.show_room_management).pack(pady=10)
+        ctk.CTkButton(sidebar, text="Gestionar Salas", width=150, command=self.show_room_management).pack(pady=10)
         #ctk.CTkButton(sidebar, text="Reservaciones", width=150, command=self.show_reservation).pack(pady=10)
         #ctk.CTkButton(sidebar, text="Ver Reportes", width=150, command=self.show_reports).pack(pady=10)
         ctk.CTkButton(sidebar, text="Cerrar Sessión", width=150, fg_color="#C0392B", command=self.close_session).pack(pady=40)
@@ -279,9 +283,158 @@ class AdminWindow:
             self.load_clients()
 
 
+    # ==================== Gestión de salas  ====================
+    def show_room_management(self):
+        self.clear_content()
+        ctk.CTkLabel(self.content, text="Gestión de Salas", font=("Consolas", 20, "bold")).pack(pady=20)
+        ctk.CTkButton(self.content, text="Agregar Sala", width=200, command=self.add_room).pack(pady=10)
+
+        # Tabla de salas
+        columns = ("id_room", "room_key", "name", "capacity", "schedule", "availability", "description")
+        self.room_tree = ttk.Treeview(self.content, columns=columns, show="headings", height=10)
+        for col in columns:
+            self.room_tree.heading(col, text=col.capitalize())
+        self.room_tree.pack(pady=10, fill="x", padx=20)
+
+        # Botones
+        btn_frame = ctk.CTkFrame(self.content, fg_color="#1C2833")
+        btn_frame.pack(pady=10)
+        ctk.CTkButton(btn_frame, text="Editar Sala", width=150, command=self.edit_room).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Eliminar Sala", width=150, command=self.delete_room).pack(side="left", padx=5)
+
+        self.load_rooms()
+
+    def load_rooms(self):
+        # Limpiar tabla
+        for item in self.room_tree.get_children():
+            self.room_tree.delete(item)
+
+        # Obtener salas
+        rooms = self.room_handler.get_all_rooms()
+        for room in rooms:
+            self.room_tree.insert("", "end", values=room)
+
+    def add_room(self):
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Agregar Sala")
+        popup.geometry("400x500")
+        popup.resizable(False, False)
+
+        entry_key = ctk.CTkEntry(popup, placeholder_text="Clave de Sala", width=300)
+        entry_key.pack(pady=10)
+
+        entry_name = ctk.CTkEntry(popup, placeholder_text="Nombre de Sala", width=300)
+        entry_name.pack(pady=10)
+
+        entry_capacity = ctk.CTkEntry(popup, placeholder_text="Capacidad", width=300)
+        entry_capacity.pack(pady=10)
+
+        combo_schedule = ctk.CTkComboBox(popup, values=["Morning", "Afternoon", "Evening"], width=300)
+        combo_schedule.set("Morning")
+        combo_schedule.pack(pady=10)
+
+        combo_availability = ctk.CTkComboBox(popup, values=["Disponible", "No disponible"], width=300)
+        combo_availability.set("Disponible")
+        combo_availability.pack(pady=10)
+
+        entry_description = ctk.CTkEntry(popup, placeholder_text="Descripción", width=300)
+        entry_description.pack(pady=10)
+
+        def save_room():
+            room_key = entry_key.get()
+            name = entry_name.get()
+            capacity = entry_capacity.get()
+            schedule = combo_schedule.get()
+            availability = 1 if combo_availability.get() == "Disponible" else 0
+            description = entry_description.get()
+
+            self.room_handler.register(room_key, name, capacity, schedule, availability, description)
+            messagebox.showinfo("Éxito", f"Sala {name} registrada correctamente")
+            popup.destroy()
+            self.load_rooms()
+
+        ctk.CTkButton(popup, text="Guardar", width=200, command=save_room).pack(pady=15)
+
+    def edit_room(self):
+        selected = self.room_tree.selection()
+        if not selected:
+            messagebox.showerror("Error", "Selecciona una sala para editar")
+            return
+
+        room_data = self.room_tree.item(selected[0])["values"]
+        print("Datos de la sala:", room_data)  # Solo para debug
+
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Editar Sala")
+        popup.geometry("400x500")
+        popup.resizable(False, False)
+
+        # Entradas
+        entry_key = ctk.CTkEntry(popup, width=300, placeholder_text="Clave de Sala")
+        entry_key.insert(0, room_data[1] if len(room_data) > 1 else "")
+        entry_key.pack(pady=10)
+
+        entry_name = ctk.CTkEntry(popup, width=300, placeholder_text="Nombre de Sala")
+        entry_name.insert(0, room_data[2] if len(room_data) > 2 else "")
+        entry_name.pack(pady=10)
+
+        entry_capacity = ctk.CTkEntry(popup, width=300, placeholder_text="Capacidad")
+        entry_capacity.insert(0, room_data[3] if len(room_data) > 3 else "")
+        entry_capacity.pack(pady=10)
+
+        # Validación de valores de schedule
+        schedule_value = room_data[4] if len(room_data) > 4 and room_data[4] in ["Morning", "Afternoon", "Evening"] else "Morning"
+        combo_schedule = ctk.CTkComboBox(popup, values=["Morning", "Afternoon", "Evening"], width=300)
+        combo_schedule.set(schedule_value)
+        combo_schedule.pack(pady=10)
+
+        # Validación de valores de availability
+        availability_value = "Disponible" if len(room_data) > 5 and room_data[5] == 1 else "No disponible"
+        combo_availability = ctk.CTkComboBox(popup, values=["Disponible", "No disponible"], width=300)
+        combo_availability.set(availability_value)
+        combo_availability.pack(pady=10)
+
+        entry_description = ctk.CTkEntry(popup, width=300, placeholder_text="Descripción")
+        entry_description.insert(0, room_data[6] if len(room_data) > 6 else "")
+        entry_description.pack(pady=10)
+
+        # Guardar cambios
+        def save_edit():
+            room_key = entry_key.get()
+            name = entry_name.get()
+            capacity = entry_capacity.get()
+            schedule = combo_schedule.get()
+            availability = 1 if combo_availability.get() == "Disponible" else 0
+            description = entry_description.get()
+
+            # Validación de campos
+            if not all([room_key, name, capacity, schedule]):
+                messagebox.showerror("Error", "Los campos clave, nombre, capacidad y horario son obligatorios")
+                return
+
+            self.room_handler.update(room_data[0], room_key, name, capacity, schedule, availability, description)
+            messagebox.showinfo("Éxito", f"Sala {name} actualizada correctamente")
+            popup.destroy()
+            self.load_rooms()
+
+        # Botón Guardar Cambios
+        ctk.CTkButton(popup, text="Guardar Cambios", width=200, command=save_edit).pack(pady=15)
+
+
+    def delete_room(self):
+        selected = self.room_tree.selection()
+        if not selected:
+            messagebox.showerror("Error", "Selecciona una sala para eliminar")
+            return
+
+        room_data = self.room_tree.item(selected[0])["values"]
+        confirm = messagebox.askyesno("Confirmar", f"¿Eliminar la sala {room_data[2]}?")
+        if confirm:
+            self.room_handler.delete(room_data[0])
+            self.load_rooms()
+
+
     # ==================== Gestión de  ====================
-
-
     # Cerrar sesión
     def close_session(self):
         self.root.destroy()
