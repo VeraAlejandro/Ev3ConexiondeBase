@@ -2,6 +2,7 @@ from models.database import Database
 from models.user import User
 import customtkinter as ctk
 from tkinter import ttk, messagebox
+from models.client import Client
 
 class AdminWindow:
     def __init__(self, user_name):
@@ -10,13 +11,14 @@ class AdminWindow:
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-        # Base de datos y handler de usuarios
+        # Base de datos y handler 
         self.db = Database(suppress_message=True)
         self.user_handler = User(self.db)
+        self.client_handler = Client(self.db)
 
         self.root = ctk.CTk()
         self.root.title("Panel de Administrador")
-        self.root.geometry("800x500")
+        self.root.geometry("1000x500")
         self.root.resizable(False, False)
 
         # Header
@@ -25,12 +27,15 @@ class AdminWindow:
         ctk.CTkLabel(header, text=f"Panel de Administrador - {self.user_name}", font=("Consolas", 22, "bold")).pack(pady=10)
 
         # Sidebar
-        sidebar = ctk.CTkFrame(self.root, width=100, corner_radius=0, fg_color="#154360")
+        sidebar = ctk.CTkFrame(self.root, width=100, corner_radius=0, fg_color="#153560")
         sidebar.pack(side="left", fill="y")
 
         ctk.CTkLabel(sidebar, text="Opciones", font=("Consolas", 17, "bold")).pack(pady=20)
         ctk.CTkButton(sidebar, text="Gestionar Usuarios", width=150, command=self.show_user_management).pack(pady=10)
-        # Otros botones...
+        ctk.CTkButton(sidebar, text="Gestionar Clientes", width=150, command=self.show_client_management).pack(pady=10)
+        #ctk.CTkButton(sidebar, text="Gestionar Salas", width=150, command=self.show_room_management).pack(pady=10)
+        #ctk.CTkButton(sidebar, text="Reservaciones", width=150, command=self.show_reservation).pack(pady=10)
+        #ctk.CTkButton(sidebar, text="Ver Reportes", width=150, command=self.show_reports).pack(pady=10)
         ctk.CTkButton(sidebar, text="Cerrar Sessión", width=150, fg_color="#C0392B", command=self.close_session).pack(pady=40)
 
         # Content
@@ -85,8 +90,8 @@ class AdminWindow:
         entry_pass = ctk.CTkEntry(popup, placeholder_text="Contraseña", width=300)
         entry_pass.pack(pady=10)
 
-        combo_type = ctk.CTkComboBox(popup, values=["Administrador", "Empleado", "Cliente"], width=300)
-        combo_type.set("Cliente")
+        combo_type = ctk.CTkComboBox(popup, values=["Administrador", "Empleado"], width=300)
+        combo_type.set("Empleado")
         combo_type.pack(pady=10)
 
         def save_user():
@@ -153,22 +158,128 @@ class AdminWindow:
             self.user_handler.delete_user(user_data[0])
             self.load_users()
 
+    # ==================== Gestión de Clientes ====================
+    def show_client_management(self):
+        self.clear_content()
+        ctk.CTkLabel(self.content, text="Gestión de Clientes", font=("Consolas", 20, "bold")).pack(pady=20)
+        ctk.CTkButton(self.content, text="Agregar Cliente", width=200, command=self.add_client).pack(pady=10)
+
+        # Tabla (Treeview)
+        columns = ("id", "client_key", "name", "email", "phone")
+        self.client_tree = ttk.Treeview(self.content, columns=columns, show="headings", height=10)
+        self.client_tree.heading("id", text="ID")
+        self.client_tree.heading("client_key", text="Clave Única")
+        self.client_tree.heading("name", text="Nombre")
+        self.client_tree.heading("email", text="Correo")
+        self.client_tree.heading("phone", text="Teléfono")
+        self.client_tree.pack(pady=10, fill="x", padx=20)
+
+        # Botones Editar / Eliminar
+        btn_frame = ctk.CTkFrame(self.content, fg_color="#1C2833")
+        btn_frame.pack(pady=10)
+        ctk.CTkButton(btn_frame, text="Editar Cliente", width=150, command=self.edit_client).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Eliminar Cliente", width=150, command=self.delete_client).pack(side="left", padx=5)
+
+        self.load_clients()
+
+    def load_clients(self):
+        # Limpiar tabla
+        for item in self.client_tree.get_children():
+            self.client_tree.delete(item)
+
+        # Cargar clientes desde la base
+        clients = self.client_handler.get_all_clients()
+        for client in clients:
+            self.client_tree.insert("", "end", values=client)
+
+    def add_client(self):
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Agregar Cliente")
+        popup.geometry("400x400")
+        popup.resizable(False, False)
+
+        entry_key = ctk.CTkEntry(popup, placeholder_text="Clave Única", width=300)
+        entry_key.pack(pady=10)
+        entry_name = ctk.CTkEntry(popup, placeholder_text="Nombre Completo", width=300)
+        entry_name.pack(pady=10)
+        entry_email = ctk.CTkEntry(popup, placeholder_text="Correo Electrónico", width=300)
+        entry_email.pack(pady=10)
+        entry_phone = ctk.CTkEntry(popup, placeholder_text="Teléfono", width=300)
+        entry_phone.pack(pady=10)
+        entry_pass = ctk.CTkEntry(popup, placeholder_text="Contraseña", show="*", width=300)
+        entry_pass.pack(pady=10)
+
+        def save_client():
+            client_key = entry_key.get()
+            name = entry_name.get()
+            email = entry_email.get()
+            phone = entry_phone.get()
+            password = entry_pass.get()
+
+            if not all([client_key, name, email, phone, password]):
+                messagebox.showerror("Error", "Todos los campos son obligatorios")
+                return
+
+            self.client_handler.register(client_key, name, email, phone, password)
+            messagebox.showinfo("Éxito", f"Cliente {name} registrado correctamente")
+            popup.destroy()
+            self.load_clients()
+
+        ctk.CTkButton(popup, text="Guardar", width=200, command=save_client).pack(pady=15)
+
+    def edit_client(self):
+        selected = self.client_tree.selection()
+        if not selected:
+            messagebox.showerror("Error", "Selecciona un cliente para editar")
+            return
+        client_data = self.client_tree.item(selected[0])["values"]
+
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Editar Cliente")
+        popup.geometry("400x400")
+        popup.resizable(False, False)
+
+        entry_key = ctk.CTkEntry(popup, placeholder_text="Clave Única", width=300)
+        entry_key.insert(0, client_data[1])
+        entry_key.pack(pady=10)
+        entry_name = ctk.CTkEntry(popup, placeholder_text="Nombre Completo", width=300)
+        entry_name.insert(0, client_data[2])
+        entry_name.pack(pady=10)
+        entry_email = ctk.CTkEntry(popup, placeholder_text="Correo Electrónico", width=300)
+        entry_email.insert(0, client_data[3])
+        entry_email.pack(pady=10)
+        entry_phone = ctk.CTkEntry(popup, placeholder_text="Teléfono", width=300)
+        entry_phone.insert(0, client_data[4])
+        entry_phone.pack(pady=10)
+
+        def save_edit():
+            client_key = entry_key.get()
+            name = entry_name.get()
+            email = entry_email.get()
+            phone = entry_phone.get()
+            if not all([client_key, name, email, phone]):
+                messagebox.showerror("Error", "Ningún campo puede estar vacío")
+                return
+            self.client_handler.update(client_data[0], client_key, name, email, phone)
+            messagebox.showinfo("Éxito", f"Cliente {name} actualizado correctamente")
+            popup.destroy()
+            self.load_clients()
+
+        ctk.CTkButton(popup, text="Guardar Cambios", width=200, command=save_edit).pack(pady=15)
+
+    def delete_client(self):
+        selected = self.client_tree.selection()
+        if not selected:
+            messagebox.showerror("Error", "Selecciona un cliente para eliminar")
+            return
+        client_data = self.client_tree.item(selected[0])["values"]
+        confirm = messagebox.askyesno("Confirmar", f"¿Eliminar al cliente {client_data[2]}?")
+        if confirm:
+            self.client_handler.delete(client_data[0])
+            self.load_clients()
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # ==================== Gestión de  ====================
 
 
     # Cerrar sesión
