@@ -12,4 +12,4 @@ class User:
     
     def register(self, name, email, password, type_user):
         self.db.execute('create_user.sql', (name, email, password, type_user))
-        print(f"User {name} registered successfully!")
+        print(f"User {name} Registrado con Exito!")
