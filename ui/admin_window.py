@@ -22,7 +22,7 @@ class AdminWindow:
 
         self.root = ctk.CTk()
         self.root.title("Panel de Administrador")
-        self.root.geometry("1000x500")
+        self.root.geometry("1000x600")
         self.root.resizable(False, False)
 
         # Header
@@ -38,7 +38,7 @@ class AdminWindow:
         ctk.CTkButton(sidebar, text="Gestionar Usuarios", width=150, command=self.show_user_management).pack(pady=10)
         ctk.CTkButton(sidebar, text="Gestionar Clientes", width=150, command=self.show_client_management).pack(pady=10)
         ctk.CTkButton(sidebar, text="Gestionar Salas", width=150, command=self.show_room_management).pack(pady=10)
-        #ctk.CTkButton(sidebar, text="Reservaciones", width=150, command=self.show_reservation).pack(pady=10)
+        ctk.CTkButton(sidebar, text="Reservaciones", width=150, command=self.show_reservation_management).pack(pady=10)
         #ctk.CTkButton(sidebar, text="Ver Reportes", width=150, command=self.show_reports).pack(pady=10)
         ctk.CTkButton(sidebar, text="Cerrar Sessión", width=150, fg_color="#C0392B", command=self.close_session).pack(pady=40)
 
@@ -434,7 +434,169 @@ class AdminWindow:
             self.load_rooms()
 
 
-    # ==================== Gestión de  ====================
+# ==================== Gestión de Reservaciones ====================
+    def show_reservation_management(self):
+        self.clear_content()
+        ctk.CTkLabel(self.content, text="Gestión de Reservaciones", font=("Consolas", 20, "bold")).pack(pady=20)
+        ctk.CTkButton(self.content, text="Agregar Reservación", width=200, command=self.add_reservation).pack(pady=10)
+        ctk.CTkButton(self.content, text="Consultar Disponibilidad", width=200, command=self.check_availability).pack(pady=10)
+
+        # Tabla (Treeview)
+        columns = ("id_reservation", "event_name", "reservation_date", "schedule", "status", "client", "room")
+        self.reservation_tree = ttk.Treeview(self.content, columns=columns, show="headings", height=10)
+        for col in columns:
+            self.reservation_tree.heading(col, text=col.replace("_", " ").capitalize())
+        self.reservation_tree.pack(pady=10, fill="x", padx=20)
+
+        # Botones Editar / Eliminar
+        btn_frame = ctk.CTkFrame(self.content, fg_color="#1C2833")
+        btn_frame.pack(pady=10)
+        ctk.CTkButton(btn_frame, text="Editar Reservación", width=150, command=self.edit_reservation).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Eliminar Reservación", width=150, command=self.delete_reservation).pack(side="left", padx=5)
+
+        self.load_reservations()
+
+
+    def load_reservations(self):
+        for item in self.reservation_tree.get_children():
+            self.reservation_tree.delete(item)
+        reservations = self.reservation_handler.get_all_reservations()
+        for res in reservations:
+            self.reservation_tree.insert("", "end", values=res)
+
+
+    def add_reservation(self):
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Agregar Reservación")
+        popup.geometry("400x500")
+        popup.resizable(False, False)
+
+        ctk.CTkLabel(popup, text="Nueva Reservación", font=("Consolas", 22, "bold")).pack(pady=10)
+
+        entry_event = ctk.CTkEntry(popup, placeholder_text="Nombre del Evento", width=300)
+        entry_event.pack(pady=10)
+
+        entry_date = ctk.CTkEntry(popup, placeholder_text="Fecha (YYYY-MM-DD)", width=300)
+        entry_date.pack(pady=10)
+
+        combo_schedule = ctk.CTkComboBox(popup, values=["Morning", "Afternoon", "Evening"], width=300)
+        combo_schedule.set("Morning")
+        combo_schedule.pack(pady=10)
+
+        # Clientes registrados
+        clients = self.client_handler.get_all_clients()
+        client_options = [f"{c[0]} - {c[2]}" for c in clients]  # id - nombre
+        combo_client = ctk.CTkComboBox(popup, values=client_options, width=300)
+        if client_options:
+            combo_client.set(client_options[0])
+        combo_client.pack(pady=10)
+
+        # Salas existentes
+        rooms = self.room_handler.get_all_rooms()
+        room_options = [f"{r[0]} - {r[2]}" for r in rooms]  # id - nombre
+        combo_room = ctk.CTkComboBox(popup, values=room_options, width=300)
+        if room_options:
+            combo_room.set(room_options[0])
+        combo_room.pack(pady=10)
+
+        def save_reservation():
+            event_name = entry_event.get()
+            date_str = entry_date.get()
+            schedule = combo_schedule.get()
+            client_id = int(combo_client.get().split(" - ")[0])
+            room_id = int(combo_room.get().split(" - ")[0])
+
+            if not all([event_name, date_str, schedule]):
+                messagebox.showerror("Error", "Todos los campos son obligatorios")
+                return
+            try:
+                self.reservation_handler.register(
+                    event_name=event_name,
+                    reservation_date=date_str,
+                    schedule=schedule,
+                    fkid_client=client_id,
+                    fkid_room=room_id
+                )
+                messagebox.showinfo("Éxito", f"Reservación para '{event_name}' registrada correctamente")
+                popup.destroy()
+                self.load_reservations()
+            except ValueError as e:
+                messagebox.showerror("Error", str(e))
+
+        ctk.CTkButton(popup, text="Guardar", width=200, command=save_reservation).pack(pady=15)
+
+
+    def edit_reservation(self):
+        selected = self.reservation_tree.selection()
+        if not selected:
+            messagebox.showerror("Error", "Selecciona una reservación para editar")
+            return
+        res_data = self.reservation_tree.item(selected[0])["values"]
+
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Editar Reservación")
+        popup.geometry("400x400")
+        popup.resizable(False, False)
+
+        entry_event = ctk.CTkEntry(popup, placeholder_text="Nombre del Evento", width=300)
+        entry_event.insert(0, res_data[1])
+        entry_event.pack(pady=10)
+
+        combo_status = ctk.CTkComboBox(popup, values=["Active", "Canceled"], width=300)
+        combo_status.set(res_data[4])
+        combo_status.pack(pady=10)
+
+        def save_edit():
+            event_name = entry_event.get()
+            status = combo_status.get()
+            self.reservation_handler.update(res_data[0], event_name=event_name, status=status)
+            messagebox.showinfo("Éxito", f"Reservación '{event_name}' actualizada correctamente")
+            popup.destroy()
+            self.load_reservations()
+
+        ctk.CTkButton(popup, text="Guardar Cambios", width=200, command=save_edit).pack(pady=15)
+
+
+    def delete_reservation(self):
+        selected = self.reservation_tree.selection()
+        if not selected:
+            messagebox.showerror("Error", "Selecciona una reservación para eliminar")
+            return
+        res_data = self.reservation_tree.item(selected[0])["values"]
+        confirm = messagebox.askyesno("Confirmar", f"¿Eliminar la reservación '{res_data[1]}'?")
+        if confirm:
+            self.reservation_handler.delete(res_data[0])
+            self.load_reservations()
+
+
+    def check_availability(self):
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Disponibilidad de Salas")
+        popup.geometry("400x400")
+        popup.resizable(False, False)
+
+        entry_date = ctk.CTkEntry(popup, placeholder_text="Fecha (YYYY-MM-DD)", width=300)
+        entry_date.pack(pady=10)
+
+        tree = ttk.Treeview(popup, columns=("room_key", "room_name", "schedule"), show="headings", height=10)
+        tree.heading("room_key", text="Clave Sala")
+        tree.heading("room_name", text="Nombre Sala")
+        tree.heading("schedule", text="Turno")
+        tree.pack(pady=10, fill="x", padx=20)
+
+        def load_availability():
+            date_str = entry_date.get()
+            for item in tree.get_children():
+                tree.delete(item)
+            try:
+                available = self.reservation_handler.get_available_rooms(date_str)
+                for room in available:
+                    tree.insert("", "end", values=room)
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+
+        ctk.CTkButton(popup, text="Consultar", width=200, command=load_availability).pack(pady=10)
+
     # Cerrar sesión
     def close_session(self):
         self.root.destroy()
