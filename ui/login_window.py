@@ -1,85 +1,68 @@
 import customtkinter as ctk
 from tkinter import messagebox
-from models.database import Database
 from models.user import User
+from models.database import Database
+from ui.register_window import RegisterWindow
 
-#configuracion base 
-ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("blue")
+class LoginWindow:
+    def __init__(self):
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("blue")
 
-#inicializar la base 
-db = Database()
-user_handler = User(db)
+        self.db = Database(suppress_message=True)  # Evita mostrar mensaje de base cargada
+        self.user_handler = User(self.db)
 
-#ventana principal 
-root = ctk.CTk()
-root.title("Sistema de Ingreso")
-root.geometry("450x420")
-root.resizable(False,False)
+        self.root = ctk.CTk()
+        self.root.title("Login System")
+        self.root.geometry("450x420")
+        self.root.resizable(False, False)
 
-#metodos
-def login():
-    email = entry_email.get()
-    password = entry_pass.get()
-    user = user_handler.login(email, password)
-    if user:
-        messagebox.showinfo("Ingreso", f"Bienvenido {user[1]}.\nTu rol es: {user[3]}")
-    else:
-        messagebox.showinfo("Error", "Correo o Contraseña Incorrectos.")
+        # Frame
+        frame = ctk.CTkFrame(self.root, corner_radius=15)
+        frame.pack(pady=30, padx=30, fill="both", expand=True)
 
-def open_register():
-    reg = ctk.CTkToplevel(root)
-    reg.title("Registro de Usuario")
-    reg.geometry("420x450")
-    reg.resizable(False,False)
+        ctk.CTkLabel(frame, text="Inicio de Sesión", font=("Consolas", 28, "bold")).pack(pady=20)
 
-    ctk.CTkLabel(reg, text="Registro de Nuevo Usuario", font=("Consolas", 18, "bold")).pack(pady=15)
+        self.entry_email = ctk.CTkEntry(frame, placeholder_text="Correo Electronico", width=300)
+        self.entry_email.pack(pady=10)
 
-    entry_name = ctk.CTkEntry(reg, placeholder_text="Nombre Completo", width=300)
-    entry_name.pack(pady=10)
+        self.entry_pass = ctk.CTkEntry(frame, placeholder_text="Contraseña", show="*", width=300)
+        self.entry_pass.pack(pady=10)
 
-    entry_email = ctk.CTkEntry(reg, placeholder_text="Correo Electronico", width=300)
-    entry_email.pack(pady=10)
+        btn_login = ctk.CTkButton(frame, text="Ingresar", width=200, command=self.login)
+        btn_login.pack(pady=15)
 
-    entry_pass = ctk.CTkEntry(reg, placeholder_text="Contraseña", width=300)
-    entry_pass.pack(pady=10)
+        ctk.CTkLabel(frame, text="¿No tienes una cuenta?", font=("Segoe UI", 11)).pack(pady=5)
+        btn_register = ctk.CTkButton(frame, text="Crear cuenta", width=200, fg_color="#16A085",
+                                     hover_color="#1ABC9C", command=self.open_register)
+        btn_register.pack(pady=5)
 
-    combo_type = ctk.CTkComboBox(reg, values=["Administrador", "Empleado", "Cliente"], width=300)
-    combo_type.set("Cliente")#por default cliente
-    combo_type.pack(pady=10)
+        self.role = None
+        self.user_name = None
 
-    def register_user():
-        #con metodo get obtenemos el valor del objeto 
-        name = entry_name.get()
-        email = entry_email.get()
-        password = entry_pass.get()
-        type_str = combo_type.get()#obtenemos el valor del combobox
-        type_map = {"Administrador": 1, "Empleado": 2, "Cliente": 3}#diccionario para validar el tipo de usuario 
-        type_user = type_map.get(type_str, 3)#si ocurre un error que por defecto sea cliente 
-        user_handler.register(name, email, password, type_user)#envio de parametros hacia la clase register
-        messagebox.showinfo("Exito", f"Usuario {name} registrado como {type_str}")
-        reg.destroy()
+        self.login_successful = False  # Para controlar si login fue exitoso
 
-    btn_register = ctk.CTkButton(reg, text = "Registrar", command=register_user, width=200)
-    btn_register.pack(pady=20)
+    def login(self):
+        email = self.entry_email.get()
+        password = self.entry_pass.get()
+        user = self.user_handler.login(email, password)
+        if user:
+            self.role = user[3]
+            self.user_name = user[1]
+            self.login_successful = True
+            messagebox.showinfo("Ingreso", f"Bienvenido {self.user_name}.\nTu rol es: {self.role}")
+            self.root.destroy()  # Cierra ventana login
+        else:
+            messagebox.showerror("Error", "Correo o Contraseña Incorrectos.")
 
-#Interfaz de Login 
-frame = ctk.CTkFrame(root, corner_radius=15)
-frame.pack(pady=30, padx=30, fill="both", expand=True)
+    def open_register(self):
+        self.root.withdraw()  # Oculta login
+        reg = RegisterWindow(master=self.root)
+        reg.run()
+        self.root.deiconify()  # Muestra login nuevamente después de cerrar registro
 
-ctk.CTkLabel(frame, text="Inicio de Sesión", font=("Consolas", 28, "bold")).pack(pady=20)
-
-entry_email = ctk.CTkEntry(frame, placeholder_text="Correo Electronico", width=300)
-entry_email.pack(pady=10)
-
-entry_pass = ctk.CTkEntry(frame, placeholder_text="Contraseña", show="*", width=300)
-entry_pass.pack(pady=10)
-
-btn_Login = ctk.CTkButton(frame, text="Ingresar", width=200, command=login)
-btn_Login.pack(pady=15)
-
-ctk.CTkLabel(frame, text="¿No tienes una cuenta?", font=("Segoe UI", 11)).pack(pady=5)
-btn_register = ctk.CTkButton(frame, text="Crear cuenta", width=200, fg_color="#16A085", hover_color="#1ABC9C", command=open_register)
-btn_register.pack(pady=5)
-
-root.mainloop()
+    def run(self):
+        self.root.mainloop()
+        if self.login_successful:
+            return self.role, self.user_name
+        return None, None
