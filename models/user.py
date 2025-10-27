@@ -12,4 +12,15 @@ class User:
     
     def register(self, name, email, password, type_user):
         self.db.execute('create_user.sql', (name, email, password, type_user))
-        print(f"User {name} Registrado con Exito!")
+        print(f"User {name} registrado con éxito!")
+
+    def get_all_user(self):
+        return self.db.query("get_all_user.sql")
+    
+    def update_user(self, user_id, name, email, type_user):
+        self.db.execute('update_user.sql', (name, email, type_user, user_id))
+        print(f"User {name} actalizado con éxito!")
+
+    def delete_user(self, user_id):
+        self.db.execute("delete_user.sql", (user_id,))
+        print(f"Usuario con ID {user_id} eliminado.")
