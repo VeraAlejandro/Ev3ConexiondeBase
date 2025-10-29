@@ -4,6 +4,7 @@ import customtkinter as ctk
 from tkinter import ttk, messagebox
 from models.client import Client
 from models.room import Room
+from models.reservation import Reservation
 
 
 class AdminWindow:
@@ -18,6 +19,7 @@ class AdminWindow:
         self.user_handler = User(self.db)
         self.client_handler = Client(self.db)
         self.room_handler = Room(self.db)
+        self.reservation_handler = Reservation(self.db)
 
 
         self.root = ctk.CTk()
@@ -503,7 +505,7 @@ class AdminWindow:
             event_name = entry_event.get()
             date_str = entry_date.get()
             schedule = combo_schedule.get()
-            client_id = int(combo_client.get().split(" - ")[0])
+            client_id = int(combo_client.get().split(" - ")[0])#checar en el front
             room_id = int(combo_room.get().split(" - ")[0])
 
             if not all([event_name, date_str, schedule]):
