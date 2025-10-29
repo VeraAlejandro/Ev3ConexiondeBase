@@ -650,7 +650,7 @@ class AdminWindow:
 
         ctk.CTkButton(popup, text="Consultar", width=200, command=load_availability).pack(pady=10)
 
-
+#-----------------------------------------------------------------------------------------------------------------------
     # Cerrar sesión
     def close_session(self):
         self.root.destroy()
