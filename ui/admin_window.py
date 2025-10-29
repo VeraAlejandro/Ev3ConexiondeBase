@@ -5,6 +5,7 @@ from tkinter import ttk, messagebox
 from models.client import Client
 from models.room import Room
 from models.reservation import Reservation
+from datetime import datetime
 
 
 class AdminWindow:
@@ -444,15 +445,19 @@ class AdminWindow:
         ctk.CTkButton(self.content, text="Consultar Disponibilidad", width=200, command=self.check_availability).pack(pady=10)
 
         # Tabla (Treeview)
-        columns = ("id_reservation", "event_name", "reservation_date", "schedule", "status", "client", "room")
+        columns = ("ID", "Evento", "Fecha", "Horario", "Estado", "Cliente", "Sala")
         self.reservation_tree = ttk.Treeview(self.content, columns=columns, show="headings", height=10)
+
         for col in columns:
-            self.reservation_tree.heading(col, text=col.replace("_", " ").capitalize())
+            self.reservation_tree.heading(col, text=col)
+            self.reservation_tree.column(col, width=120, anchor="center")
+
         self.reservation_tree.pack(pady=10, fill="x", padx=20)
 
-        # Botones Editar / Eliminar
+        # Botones de acción
         btn_frame = ctk.CTkFrame(self.content, fg_color="#1C2833")
         btn_frame.pack(pady=10)
+
         ctk.CTkButton(btn_frame, text="Editar Reservación", width=150, command=self.edit_reservation).pack(side="left", padx=5)
         ctk.CTkButton(btn_frame, text="Eliminar Reservación", width=150, command=self.delete_reservation).pack(side="left", padx=5)
 
@@ -462,19 +467,24 @@ class AdminWindow:
     def load_reservations(self):
         for item in self.reservation_tree.get_children():
             self.reservation_tree.delete(item)
-        reservations = self.reservation_handler.get_all_reservations()
-        for res in reservations:
-            self.reservation_tree.insert("", "end", values=res)
+
+        try:
+            reservations = self.reservation_handler.get_all_reservations()
+            for res in reservations:
+                self.reservation_tree.insert("", "end", values=res)
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudieron cargar las reservaciones.\n{e}")
 
 
     def add_reservation(self):
         popup = ctk.CTkToplevel(self.root)
         popup.title("Agregar Reservación")
-        popup.geometry("400x500")
+        popup.geometry("400x520")
         popup.resizable(False, False)
 
         ctk.CTkLabel(popup, text="Nueva Reservación", font=("Consolas", 22, "bold")).pack(pady=10)
 
+        # Campos de entrada
         entry_event = ctk.CTkEntry(popup, placeholder_text="Nombre del Evento", width=300)
         entry_event.pack(pady=10)
 
@@ -485,33 +495,41 @@ class AdminWindow:
         combo_schedule.set("Morning")
         combo_schedule.pack(pady=10)
 
-        # Clientes registrados
+        # Clientes
         clients = self.client_handler.get_all_clients()
-        client_options = [f"{c[0]} - {c[2]}" for c in clients]  # id - nombre
+        client_options = [f"{c[0]} - {c[2]}" for c in clients]
         combo_client = ctk.CTkComboBox(popup, values=client_options, width=300)
         if client_options:
             combo_client.set(client_options[0])
         combo_client.pack(pady=10)
 
-        # Salas existentes
+        # Salas
         rooms = self.room_handler.get_all_rooms()
-        room_options = [f"{r[0]} - {r[2]}" for r in rooms]  # id - nombre
+        room_options = [f"{r[0]} - {r[2]}" for r in rooms]
         combo_room = ctk.CTkComboBox(popup, values=room_options, width=300)
         if room_options:
             combo_room.set(room_options[0])
         combo_room.pack(pady=10)
 
         def save_reservation():
-            event_name = entry_event.get()
-            date_str = entry_date.get()
-            schedule = combo_schedule.get()
-            client_id = int(combo_client.get().split(" - ")[0])#checar en el front
-            room_id = int(combo_room.get().split(" - ")[0])
+            event_name = entry_event.get().strip()
+            date_str = entry_date.get().strip()
+            schedule = combo_schedule.get().strip()
 
             if not all([event_name, date_str, schedule]):
-                messagebox.showerror("Error", "Todos los campos son obligatorios")
+                messagebox.showerror("Error", "Todos los campos son obligatorios.")
                 return
+
+            # Validar formato de fecha
             try:
+                datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                messagebox.showerror("Error", "Formato de fecha inválido. Usa YYYY-MM-DD.")
+                return
+
+            try:
+                client_id = int(combo_client.get().split(" - ")[0])
+                room_id = int(combo_room.get().split(" - ")[0])
                 self.reservation_handler.register(
                     event_name=event_name,
                     reservation_date=date_str,
@@ -519,28 +537,31 @@ class AdminWindow:
                     fkid_client=client_id,
                     fkid_room=room_id
                 )
-                messagebox.showinfo("Éxito", f"Reservación para '{event_name}' registrada correctamente")
+                messagebox.showinfo("Éxito", f"Reservación para '{event_name}' registrada correctamente.")
                 popup.destroy()
                 self.load_reservations()
-            except ValueError as e:
+            except Exception as e:
                 messagebox.showerror("Error", str(e))
 
-        ctk.CTkButton(popup, text="Guardar", width=200, command=save_reservation).pack(pady=15)
+        ctk.CTkButton(popup, text="Guardar Reservación", width=200, command=save_reservation).pack(pady=15)
 
 
     def edit_reservation(self):
         selected = self.reservation_tree.selection()
         if not selected:
-            messagebox.showerror("Error", "Selecciona una reservación para editar")
+            messagebox.showwarning("Advertencia", "Selecciona una reservación para editar.")
             return
+
         res_data = self.reservation_tree.item(selected[0])["values"]
 
         popup = ctk.CTkToplevel(self.root)
         popup.title("Editar Reservación")
-        popup.geometry("400x400")
+        popup.geometry("400x350")
         popup.resizable(False, False)
 
-        entry_event = ctk.CTkEntry(popup, placeholder_text="Nombre del Evento", width=300)
+        ctk.CTkLabel(popup, text=f"Editar: {res_data[1]}", font=("Consolas", 18, "bold")).pack(pady=10)
+
+        entry_event = ctk.CTkEntry(popup, width=300)
         entry_event.insert(0, res_data[1])
         entry_event.pack(pady=10)
 
@@ -549,12 +570,24 @@ class AdminWindow:
         combo_status.pack(pady=10)
 
         def save_edit():
-            event_name = entry_event.get()
-            status = combo_status.get()
-            self.reservation_handler.update(res_data[0], event_name=event_name, status=status)
-            messagebox.showinfo("Éxito", f"Reservación '{event_name}' actualizada correctamente")
-            popup.destroy()
-            self.load_reservations()
+            event_name = entry_event.get().strip()
+            status = combo_status.get().strip()
+
+            if not event_name:
+                messagebox.showerror("Error", "El nombre del evento no puede estar vacío.")
+                return
+
+            try:
+                self.reservation_handler.update(
+                    reservation_id=res_data[0],
+                    event_name=event_name,
+                    status=status
+                )
+                messagebox.showinfo("Éxito", f"Reservación '{event_name}' actualizada correctamente.")
+                popup.destroy()
+                self.load_reservations()
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
 
         ctk.CTkButton(popup, text="Guardar Cambios", width=200, command=save_edit).pack(pady=15)
 
@@ -562,42 +595,61 @@ class AdminWindow:
     def delete_reservation(self):
         selected = self.reservation_tree.selection()
         if not selected:
-            messagebox.showerror("Error", "Selecciona una reservación para eliminar")
+            messagebox.showwarning("Advertencia", "Selecciona una reservación para eliminar.")
             return
+
         res_data = self.reservation_tree.item(selected[0])["values"]
         confirm = messagebox.askyesno("Confirmar", f"¿Eliminar la reservación '{res_data[1]}'?")
+
         if confirm:
-            self.reservation_handler.delete(res_data[0])
-            self.load_reservations()
+            try:
+                self.reservation_handler.delete(res_data[0])
+                self.load_reservations()
+                messagebox.showinfo("Éxito", "Reservación eliminada correctamente.")
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
 
 
     def check_availability(self):
         popup = ctk.CTkToplevel(self.root)
         popup.title("Disponibilidad de Salas")
-        popup.geometry("400x400")
+        popup.geometry("420x450")
         popup.resizable(False, False)
+
+        ctk.CTkLabel(popup, text="Consultar Disponibilidad", font=("Consolas", 18, "bold")).pack(pady=10)
 
         entry_date = ctk.CTkEntry(popup, placeholder_text="Fecha (YYYY-MM-DD)", width=300)
         entry_date.pack(pady=10)
 
-        tree = ttk.Treeview(popup, columns=("room_key", "room_name", "schedule"), show="headings", height=10)
-        tree.heading("room_key", text="Clave Sala")
-        tree.heading("room_name", text="Nombre Sala")
-        tree.heading("schedule", text="Turno")
+        tree = ttk.Treeview(popup, columns=("ID", "Sala", "Horario"), show="headings", height=10)
+        for col in ("ID", "Sala", "Horario"):
+            tree.heading(col, text=col)
+            tree.column(col, width=120, anchor="center")
         tree.pack(pady=10, fill="x", padx=20)
 
         def load_availability():
-            date_str = entry_date.get()
+            date_str = entry_date.get().strip()
             for item in tree.get_children():
                 tree.delete(item)
+
             try:
-                available = self.reservation_handler.get_available_rooms(date_str)
+                datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                messagebox.showerror("Error", "Formato de fecha inválido. Usa YYYY-MM-DD.")
+                return
+
+            try:
+                available = self.reservation_handler.get_available_rooms_list(date_str)
+                if not available:
+                    messagebox.showinfo("Sin resultados", "No hay salas disponibles para esa fecha.")
+                    return
                 for room in available:
                     tree.insert("", "end", values=room)
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
         ctk.CTkButton(popup, text="Consultar", width=200, command=load_availability).pack(pady=10)
+
 
     # Cerrar sesión
     def close_session(self):

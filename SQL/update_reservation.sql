@@ -1,9 +1,3 @@
 UPDATE Reservations
-SET
-    event_name = ?,
-    reservation_date = ?,
-    schedule = ?,
-    status = ?,
-    fkid_client = ?,
-    fkid_room = ?
+SET event_name = ?, status = ?
 WHERE id_reservation = ?;
